@@ -18,7 +18,6 @@ service: Student-api-task
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
-frameworkVersion: '3'
 
 provider:
   name: aws
@@ -31,6 +30,27 @@ provider:
   runtime: python3.12
   stage: dev
   region: us-east-1
+  profile: default
+  iam:
+    role:
+      statements:
+        - Effect: 'Allow'
+          Action:
+            - 'dynamodb:*'
+            - 'ec2:*'
+          Resource: '*'
+  apiGateway: 
+    resourcePolicy:
+      - Effect: Allow
+        Principal: '*'
+        Action: execute-api:Invoke
+        Resource:
+          - execute-api:/*/*/*
+        Condition:
+          IpAddress:
+            aws:SourceIp:
+              - '27.54.185.178'
+
   environment: 
     DYNAMODB_TABLE: Student
 
@@ -46,16 +66,14 @@ plugins:
   - serverless-domain-manager 
 
 # you can add statements to the Lambda function's IAM Role here
-iam:
-  role:
-    statements:
-       - Effect: 'Allow'
-         Action:
-          - 'dynamodb:*'
-          - 'ec2:*'
-         Resource: '*'
-    # managedPolicies:
-    #    - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess' 
+# iam:
+#   role:
+#     statements:
+#        - Effect: 'Allow'
+#          Action:
+#           - 'dynamodb:*'
+#           - 'ec2:*'
+#          Resource: '*'
 #        - Effect: "Allow"
 #          Action:
 #            - "s3:PutObject"
@@ -188,7 +206,6 @@ resources:
           - email  
         AdminCreateUserConfig:
           AllowAdminCreateUserOnly: false 
-
 
     CognitoUserPoolClient:
       Type: AWS::Cognito::UserPoolClient
