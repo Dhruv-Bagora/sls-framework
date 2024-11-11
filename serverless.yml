@@ -1,0 +1,232 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# We've included some commented out config examples here.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: Student-api-task
+# app and org for use with dashboard.serverless.com
+#app: your-app-name
+#org: your-org-name
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  vpc:
+    securityGroupIds:
+      - sg-01a06c7454ea3d241
+    subnetIds:
+      - subnet-0c0c84015cd751919
+      - subnet-0fdbf4f9cadd66da9
+  runtime: python3.12
+  stage: dev
+  region: us-east-1
+  environment: 
+    DYNAMODB_TABLE: Student
+
+custom:
+  customDomain:
+    domainName: main.thedhruv.online
+    basePath: ""
+    stage: ${opt:stage, self:provider.stage}
+    createRoute53Record: false
+    certificateArn: arn:aws:acm:us-east-1:600627359701:certificate/a8450e50-0a21-40a9-9653-abdb16c4df52
+
+plugins:
+  - serverless-domain-manager 
+
+# you can add statements to the Lambda function's IAM Role here
+iam:
+  role:
+    statements:
+       - Effect: 'Allow'
+         Action:
+          - 'dynamodb:*'
+          - 'ec2:*'
+         Resource: '*'
+    # managedPolicies:
+    #    - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess' 
+#        - Effect: "Allow"
+#          Action:
+#            - "s3:PutObject"
+#          Resource:
+#            Fn::Join:
+#              - ""
+#              - - "arn:aws:s3:::"
+#                - "Ref" : "ServerlessDeploymentBucket"
+#                - "/*"
+
+# you can define service wide environment variables here
+#  environment:
+#    variable1: value1
+
+# you can add packaging information here
+#package:
+#  patterns:
+#    - '!exclude-me.py'
+#    - '!exclude-me-dir/**'
+#    - include-me.py
+#    - include-me-dir/**
+
+functions:
+  createStudent:
+    handler: CreateStudent.lambda_handler
+    timeout: 180
+    events:
+      - http:
+          path: create
+          method: post
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: CognitoUserPoolAuthorizer
+  retrieveStudent:
+    handler: RetrieveStudent.lambda_handler
+    timeout: 180 
+    events:
+      - http:
+          path: retrieve
+          method: get
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: CognitoUserPoolAuthorizer
+  checkStudentExists:
+    handler: CheckStudentExists.lambda_handler
+    timeout: 180  
+    events:
+      - http:
+          path: check
+          method: get
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: CognitoUserPoolAuthorizer
+#    The following are a few example events you can configure
+#    NOTE: Please make sure to change your handler code to work with those events
+#    Check the event documentation for details
+#    events:
+#      - httpApi:
+#          path: /users/create
+#          method: get
+#      - websocket: $connect
+#      - s3: ${env:BUCKET}
+#      - schedule: rate(10 minutes)
+#      - sns: greeter-topic
+#      - stream: arn:aws:dynamodb:region:XXXXXX:table/foo/stream/1970-01-01T00:00:00.000
+#      - alexaSkill: amzn1.ask.skill.xx-xx-xx-xx
+#      - alexaSmartHome: amzn1.ask.skill.xx-xx-xx-xx
+#      - iot:
+#          sql: "SELECT * FROM 'some_topic'"
+#      - cloudwatchEvent:
+#          event:
+#            source:
+#              - "aws.ec2"
+#            detail-type:
+#              - "EC2 Instance State-change Notification"
+#            detail:
+#              state:
+#                - pending
+#      - cloudwatchLog: '/aws/lambda/hello'
+#      - cognitoUserPool:
+#          pool: MyUserPool
+#          trigger: PreSignUp
+#      - alb:
+#          listenerArn: arn:aws:elasticloadbalancing:us-east-1:XXXXXX:listener/app/my-load-balancer/50dc6c495c0c9188/
+#          priority: 1
+#          conditions:
+#            host: example.com
+#            path: /hello
+
+#    Define function environment variables here
+#    environment:
+#      variable2: value2
+
+# you can add CloudFormation resource templates here
+resources:
+  Resources:
+    StudentDynamoDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        AttributeDefinitions:
+          - AttributeName: studentId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: studentId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: StudentAPIUserPool
+        AutoVerifiedAttributes:
+          - email
+        Schema:
+          - AttributeDataType: String
+            Name: email
+            Required: true
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 6
+            RequireLowercase: false
+            RequireUppercase: false
+            RequireNumbers: false
+            RequireSymbols: false
+        UsernameAttributes:
+          - email  
+        AdminCreateUserConfig:
+          AllowAdminCreateUserOnly: false 
+
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: StudentAPIUserPoolClient
+        UserPoolId: 
+          Ref: CognitoUserPool
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_CUSTOM_AUTH               
+          - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        GenerateSecret: false # As API gateway does not support seret based integration
+        AllowedOAuthFlows:
+          - code 
+          - implicit
+        AllowedOAuthScopes:
+          - email
+          - openid
+          - profile
+        AllowedOAuthFlowsUserPoolClient: true
+        CallbackURLs:
+          - "https://test.com/"
+        SupportedIdentityProviders:
+          - COGNITO
+    CognitoDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: test-auth-dhruv-bagora
+        UserPoolId:
+          Ref: CognitoUserPool
+    CognitoUserPoolAuthorizer:
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        Name: CognitoAuthorizer
+        Type: COGNITO_USER_POOLS
+        IdentitySource: method.request.header.Authorization
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ProviderARNs:
+          - Fn::GetAtt: [CognitoUserPool, Arn]
